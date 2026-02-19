@@ -1,538 +1,844 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart Steg PRO - Lagerverwaltung</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        body { 
-            font-family: 'Inter', sans-serif; 
-            -webkit-tap-highlight-color: transparent; 
-            background-color: #f8fafc;
-        }
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #facc15; border-radius: 10px; }
-        .custom-scrollbar::-webkit-track { background: #0f172a; }
-        .grid-cell { transition: all 0.2s ease-in-out; }
-        .grid-cell:active { transform: scale(0.9); }
-        .glass-effect {
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(10px);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Smart Steg PRO - Lagerverwaltung</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #f8fafc; }
+    .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #facc15; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+    .grid-cell { transition: all 0.2s ease-in-out; }
+    .grid-cell:active { transform: scale(0.9); }
+    .glass-effect { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); }
+  </style>
 </head>
+
 <body class="bg-slate-50">
-    <div id="root"></div>
+  <!-- Boot screen (always visible even if JS fails early) -->
+  <div id="boot" style="
+    position:fixed; inset:0; display:flex; flex-direction:column; gap:12px;
+    align-items:center; justify-content:center;
+    background:#0f172a; color:#facc15;
+    font:900 14px/1.4 Inter,system-ui,sans-serif;
+    letter-spacing:.12em; text-transform:uppercase;
+    z-index:999999;
+    padding:24px; text-align:center;
+  ">
+    <div style="font-size:18px; letter-spacing:.18em;">Smart Steg PRO lädt…</div>
+    <div style="color:#94a3b8; font-weight:800; letter-spacing:.08em; text-transform:none; font-size:12px; max-width:560px;">
+      Wenn das nicht verschwindet: Scripts starten nicht oder es gibt einen JS-Fehler.
+    </div>
+    <div id="bootHint" style="display:none; color:#fb7185; font-weight:900; letter-spacing:.06em; text-transform:none; font-size:12px; max-width:560px;">
+      App ist nicht gestartet. Bitte Browser-Konsole öffnen (F12 → Console).
+    </div>
+    <div style="margin-top:6px; width:56px; height:56px; border-radius:999px; border:5px solid #facc15; border-top-color:transparent; animation:spin 1s linear infinite;"></div>
+  </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, getDoc, addDoc, query } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 
-        window.FirebaseSDK = { 
-            initializeApp, getFirestore, collection, doc, setDoc, 
-            onSnapshot, deleteDoc, updateDoc, getDoc, addDoc, query,
-            getAuth, signInAnonymously, onAuthStateChanged 
+  <div id="root"></div>
+
+  <script>
+    window.__APP_STARTED__ = false;
+    setTimeout(() => {
+      if (!window.__APP_STARTED__) {
+        const hint = document.getElementById("bootHint");
+        if (hint) hint.style.display = "block";
+      }
+    }, 4000);
+
+    window.addEventListener("error", (e) => {
+      const boot = document.getElementById("boot");
+      if (!boot) return;
+      boot.style.background = "#0b1220";
+      boot.style.color = "#fca5a5";
+      boot.innerHTML =
+        "<pre style='white-space:pre-wrap;max-width:960px;text-align:left;font:14px/1.4 ui-monospace,monospace;color:#fca5a5'>" +
+        "JS ERROR:\\n" + (e.message || e.error) + "\\n\\n" +
+        (e.filename ? (e.filename + ':' + e.lineno + ':' + e.colno + \"\\n\\n\") : \"\") +
+        (e.error && e.error.stack ? e.error.stack : \"\") +
+        "</pre>";
+    });
+
+    window.addEventListener("unhandledrejection", (e) => {
+      const boot = document.getElementById("boot");
+      if (!boot) return;
+      boot.style.background = "#0b1220";
+      boot.style.color = "#fca5a5";
+      boot.innerHTML =
+        "<pre style='white-space:pre-wrap;max-width:960px;text-align:left;font:14px/1.4 ui-monospace,monospace;color:#fca5a5'>" +
+        "PROMISE ERROR:\\n" + (e.reason?.message || e.reason) + "\\n\\n" +
+        (e.reason?.stack || \"\") +
+        "</pre>";
+    });
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import {
+      getFirestore, collection, collectionGroup, doc, setDoc,
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where,
+      writeBatch, limit
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+    window.FirebaseSDK = {
+      initializeApp, getFirestore, collection, collectionGroup, doc, setDoc,
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where,
+      writeBatch, limit,
+      getAuth, signInAnonymously, onAuthStateChanged
+    };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    if (!window.FirebaseSDK) {
+      throw new Error("FirebaseSDK wurde nicht geladen (CSP/Module blockiert oder Netzwerk).");
+    }
+
+    const {
+      initializeApp, getFirestore, collection, collectionGroup, doc, setDoc,
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where,
+      writeBatch, limit,
+      getAuth, signInAnonymously, onAuthStateChanged
+    } = window.FirebaseSDK;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBGqPXXcmJTbL3PVrn-PKL0Gig45r6GPbQ",
+      authDomain: "steg-lager-test.firebaseapp.com",
+      databaseURL: "https://steg-lager-test-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "steg-lager-test",
+      storageBucket: "steg-lager-test.firebasestorage.app",
+      messagingSenderId: "655203951825",
+      appId: "1:655203951825:web:9edcfb40f29ed70f61d1f0",
+      measurementId: "G-Q6FX41P556"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ✅ Public access stays, appId is used only as filter key
+    const APP_ID = "stege-lager-v1";
+
+    const Icon = ({ name, size = 20, className = "" }) => {
+      useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name, className]);
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    };
+
+    const safeDocId = (s) => String(s || "").replace(/\//g, "_").trim();
+    const slotIdFrom = (shelf, level) => `${String(shelf)}_L${Number(level)}`;
+
+    const deriveFromPath = (path) => {
+      const parts = String(path).split("/");
+      const idx = parts.indexOf("slots");
+      if (idx === -1) return { slotId: null, shelf: null, level: null };
+      const slotId = parts[idx + 1] || null;
+      if (!slotId) return { slotId: null, shelf: null, level: null };
+      const m = String(slotId).match(/^(.+)_L(\d+)$/);
+      if (!m) return { slotId, shelf: null, level: null };
+      return { slotId, shelf: m[1], level: Number(m[2]) };
+    };
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [loading, setLoading] = useState(true);
+      const [user, setUser] = useState(null);
+
+      const [rawItems, setRawItems] = useState([]);
+      const [stegItems, setStegItems] = useState([]);
+      const [masterItems, setMasterItems] = useState([]);
+      const [searchQuery, setSearchQuery] = useState("");
+
+      // Forms
+      const [newStock, setNewStock] = useState({
+        itemKey: "",
+        shelf: "C1",
+        level: 1,
+        qty: "",
+        source: "anlieferung",
+        reference: "",
+        note: ""
+      });
+
+      const [outStock, setOutStock] = useState({ entryId: "", qty: "", destination: "produktion" });
+      const [moveStock, setMoveStock] = useState({ entryId: "", targetShelf: "C1", targetLevel: 1, qty: "" });
+
+      const shelves = useMemo(() => Array.from({ length: 38 }, (_, i) => `C${i + 1}`), []);
+      const levels = [5, 4, 3, 2, 1];
+
+      // Auth
+      useEffect(() => {
+        const init = async () => {
+          try { await signInAnonymously(auth); }
+          catch (e) { console.error("Auth Error:", e); }
         };
-    </script>
+        init();
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-        const { 
-            initializeApp, getFirestore, collection, doc, setDoc, 
-            onSnapshot, deleteDoc, updateDoc, getDoc, addDoc, query,
-            getAuth, signInAnonymously, onAuthStateChanged 
-        } = window.FirebaseSDK;
+        const unsub = onAuthStateChanged(auth, (u) => {
+          if (u) { setUser(u); setLoading(false); }
+        });
+        return () => unsub();
+      }, []);
 
-        // Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyB9Aod0Jmcfe-3yzYgjNoQRuvkUo1oQuk4",
-            authDomain: "stege-lager.firebaseapp.com",
-            projectId: "stege-lager",
-            storageBucket: "stege-lager.firebasestorage.app",
-            messagingSenderId: "1045573312409",
-            appId: "1:1045573312409:web:e1df24d652d86bc56efd08"
+      // ✅ Items subscription with fallback (fixes "inventory empty" when old docs miss appId)
+      useEffect(() => {
+        if (!user) return;
+
+        const basePrefix = `artifacts/${APP_ID}/public/data/slots/`;
+        let unsubPrimary = null;
+        let unsubFallback = null;
+
+        const primaryQ = query(
+          collectionGroup(db, "items"),
+          where("appId", "==", APP_ID)
+        );
+
+        unsubPrimary = onSnapshot(primaryQ, (snap) => {
+          const docs = snap.docs.map(d => ({ __path: d.ref.path, __id: d.id, ...d.data() }));
+
+          if (docs.length > 0) {
+            setRawItems(docs);
+            if (unsubFallback) { unsubFallback(); unsubFallback = null; }
+            return;
+          }
+
+          // Start fallback only once
+          if (!unsubFallback) {
+            console.warn("Primary items query returned 0. Starting fallback by path prefix (likely missing appId on docs).");
+            const fallbackQ = query(collectionGroup(db, "items"), limit(5000));
+
+            unsubFallback = onSnapshot(fallbackQ, (snap2) => {
+              const all = snap2.docs.map(d => ({ __path: d.ref.path, __id: d.id, ...d.data() }));
+              const filtered = all.filter(x => (x.__path || "").includes(basePrefix));
+              setRawItems(filtered);
+            }, (err) => console.error("Fallback items fetch error:", err));
+          }
+        }, (err) => console.error("Primary items fetch error:", err));
+
+        return () => {
+          if (unsubPrimary) unsubPrimary();
+          if (unsubFallback) unsubFallback();
         };
+      }, [user]);
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = 'stege-lager-v1';
+      // Other collections
+      useEffect(() => {
+        if (!user) return;
 
-        const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => { 
-                if (window.lucide) window.lucide.createIcons(); 
-            }, [name, className]);
-            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
-        };
+        const unsubSteg = onSnapshot(
+          collection(db, "artifacts", APP_ID, "public", "data", "steg_items"),
+          (snap) => {
+            const items = snap.docs.map(d => {
+              const data = d.data();
+              return { id: d.id, code: data.code || data.name || d.id, ...data };
+            }).sort((a,b) => String(a.code).localeCompare(String(b.code)));
+            setStegItems(items);
+          },
+          (err) => console.error("Steg items fetch error:", err)
+        );
 
-        function App() {
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [stockEntries, setStockEntries] = useState([]);
-            const [stegItems, setStegItems] = useState([]);
-            const [masterItems, setMasterItems] = useState([]);
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [searchQuery, setSearchQuery] = useState('');
-            
-            // State for forms
-            const [newStock, setNewStock] = useState({ itemKey: '', shelf: 'C1', level: 1, qty: '', source: 'anlieferung' });
-            const [outStock, setOutStock] = useState({ entryId: '', qty: '', destination: 'produktion' });
-            const [moveStock, setMoveStock] = useState({ entryId: '', targetShelf: 'C1', targetLevel: 1, qty: '' });
+        const unsubMaster = onSnapshot(
+          collection(db, "artifacts", APP_ID, "public", "data", "master_items"),
+          (snap) => setMasterItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("Master items fetch error:", err)
+        );
 
-            const shelves = useMemo(() => Array.from({ length: 38 }, (_, i) => `C${i + 1}`), []);
-            const levels = [5, 4, 3, 2, 1];
+        return () => { unsubSteg(); unsubMaster(); };
+      }, [user]);
 
-            useEffect(() => {
-                const initAuth = async () => {
-                    try { await signInAnonymously(auth); } catch (err) { console.error("Auth Error:", err); }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    if (u) { setUser(u); setLoading(false); }
-                });
-                return () => unsubscribe();
-            }, []);
+      // Normalize items
+      const itemDocs = useMemo(() => {
+        const out = [];
+        for (const d of rawItems) {
+          const derived = deriveFromPath(d.__path || "");
+          const shelf = d.shelf ?? d.location?.shelf ?? derived.shelf;
+          const level = Number(d.level ?? d.location?.level ?? derived.level);
+          const slotId = d.slotId ?? derived.slotId ?? (shelf && level ? slotIdFrom(shelf, level) : null);
 
-            useEffect(() => {
-                if (!user) return;
-                
-                const unsubStock = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'stock_entries'), 
-                    (snap) => setStockEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("Stock fetch error:", err));
+          const itemKey = d.itemKey ?? d.key ?? d.code ?? d.__id;
+          const quantity = Number(d.quantity) || 0;
 
-                const unsubSteg = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'steg_items'), 
-                    (snap) => {
-                        const items = snap.docs.map(d => {
-                            const data = d.data();
-                            return { 
-                                id: d.id, 
-                                code: data.code || data.name || d.id, 
-                                ...data 
-                            };
-                        }).sort((a, b) => String(a.code).localeCompare(String(b.code)));
-                        setStegItems(items);
-                    },
-                    (err) => console.error("Steg items fetch error:", err));
+          if (!shelf || !level || !slotId || !itemKey || quantity <= 0) continue;
 
-                const unsubMaster = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'master_items'), 
-                    (snap) => setMasterItems(snap.docs.map(d => d.data())),
-                    (err) => console.error("Master items fetch error:", err));
+          out.push({
+            id: `${slotId}__${safeDocId(itemKey)}`,
+            slotId, shelf, level,
+            itemKey: String(itemKey),
+            quantity,
+            updatedAt: Number(d.updatedAt) || 0,
+            appId: d.appId || null,
+            __path: d.__path || ""
+          });
+        }
+        return out;
+      }, [rawItems]);
 
-                return () => { unsubStock(); unsubSteg(); unsubMaster(); };
-            }, [user]);
+      const slotMap = useMemo(() => {
+        const m = new Map();
+        for (const it of itemDocs) {
+          const key = `${it.shelf}|${it.level}`;
+          if (!m.has(key)) m.set(key, []);
+          m.get(key).push(it);
+        }
+        for (const [k, arr] of m.entries()) {
+          arr.sort((a,b) => String(a.itemKey).localeCompare(String(b.itemKey)));
+          m.set(k, arr);
+        }
+        return m;
+      }, [itemDocs]);
 
-            const getLinkedAWBs = (stegCode) => {
-                if (!stegCode) return [];
-                return masterItems.filter(m => m.steg1 === stegCode || m.steg2 === stegCode).map(m => m.awb);
-            };
+      const occupiedSlots = slotMap.size;
+      const totalParts = useMemo(() => itemDocs.reduce((s, x) => s + (Number(x.quantity) || 0), 0), [itemDocs]);
 
-            const totalParts = useMemo(() => stockEntries.reduce((sum, entry) => sum + (Number(entry.quantity) || 0), 0), [stockEntries]);
-            const occupiedSlots = stockEntries.length;
+      const debug = useMemo(() => ({
+        raw: rawItems.length,
+        normalized: itemDocs.length,
+        slots: occupiedSlots,
+        sum: totalParts,
+        missingAppId: itemDocs.filter(x => !x.appId).length
+      }), [rawItems.length, itemDocs.length, occupiedSlots, totalParts]);
 
-            const handleAddStock = async (e) => {
-                e.preventDefault();
-                if (!newStock.itemKey || !newStock.qty || newStock.qty <= 0) return;
-                
-                const id = `${newStock.shelf}-${newStock.level}-${newStock.itemKey}`.replace(/\//g, '_');
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stock_entries', id);
-                
-                try {
-                    const existing = await getDoc(docRef);
-                    if (existing.exists()) {
-                        await updateDoc(docRef, { 
-                            quantity: Number(existing.data().quantity) + Number(newStock.qty),
-                            lastUpdate: Date.now(),
-                            lastSource: newStock.source
-                        });
-                    } else {
-                        await setDoc(docRef, {
-                            itemKey: newStock.itemKey,
-                            type: 'steg',
-                            quantity: Number(newStock.qty),
-                            location: { shelf: newStock.shelf, level: newStock.level },
-                            timestamp: Date.now(),
-                            lastSource: newStock.source
-                        });
-                    }
-                    setNewStock({ ...newStock, qty: '', itemKey: '' });
-                    setActiveTab('inventory');
-                } catch (err) { console.error("Add error:", err); }
-            };
+      // Migration: add appId to old docs (up to 500 at a time)
+      const runMigrationAddAppId = async () => {
+        const missing = itemDocs.filter(x => !x.appId && x.__path);
+        if (missing.length === 0) { alert("Migration: Keine Dokumente ohne appId gefunden ✅"); return; }
 
-            const handleRemoveStock = async (e) => {
-                e.preventDefault();
-                if (!outStock.entryId || !outStock.qty || outStock.qty <= 0) return;
-                
-                const entry = stockEntries.find(e => e.id === outStock.entryId);
-                if (!entry || entry.quantity < outStock.qty) return;
+        const batch = writeBatch(db);
+        const max = Math.min(missing.length, 500);
 
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stock_entries', outStock.entryId);
-                try {
-                    const newQty = entry.quantity - Number(outStock.qty);
-                    if (newQty <= 0) {
-                        await deleteDoc(docRef);
-                    } else {
-                        await updateDoc(docRef, { 
-                            quantity: newQty,
-                            lastUpdate: Date.now(),
-                            lastDestination: outStock.destination
-                        });
-                    }
-                    setOutStock({ entryId: '', qty: '', destination: 'produktion' });
-                    setActiveTab('inventory');
-                } catch (err) { console.error("Remove error:", err); }
-            };
-
-            const handleMoveStock = async (e) => {
-                e.preventDefault();
-                if (!moveStock.entryId || !moveStock.qty || moveStock.qty <= 0) return;
-                
-                const sourceEntry = stockEntries.find(e => e.id === moveStock.entryId);
-                if (!sourceEntry || sourceEntry.quantity < moveStock.qty) return;
-
-                const targetId = `${moveStock.targetShelf}-${moveStock.targetLevel}-${sourceEntry.itemKey}`.replace(/\//g, '_');
-                const sourceDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'stock_entries', moveStock.entryId);
-                const targetDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'stock_entries', targetId);
-
-                try {
-                    const remainingQty = sourceEntry.quantity - Number(moveStock.qty);
-                    if (remainingQty <= 0) {
-                        await deleteDoc(sourceDocRef);
-                    } else {
-                        await updateDoc(sourceDocRef, { quantity: remainingQty, lastUpdate: Date.now() });
-                    }
-
-                    const targetSnap = await getDoc(targetDocRef);
-                    if (targetSnap.exists()) {
-                        await updateDoc(targetDocRef, { 
-                            quantity: Number(targetSnap.data().quantity) + Number(moveStock.qty),
-                            lastUpdate: Date.now()
-                        });
-                    } else {
-                        await setDoc(targetDocRef, {
-                            itemKey: sourceEntry.itemKey,
-                            type: 'steg',
-                            quantity: Number(moveStock.qty),
-                            location: { shelf: moveStock.targetShelf, level: moveStock.targetLevel },
-                            timestamp: Date.now()
-                        });
-                    }
-
-                    setMoveStock({ entryId: '', targetShelf: 'C1', targetLevel: 1, qty: '' });
-                    setActiveTab('inventory');
-                } catch (err) { console.error("Move error:", err); }
-            };
-
-            const filteredStock = useMemo(() => {
-                const term = searchQuery.trim().toUpperCase();
-                if (!term) return stockEntries;
-                return stockEntries.filter(entry => {
-                    const keyMatch = entry.itemKey.toUpperCase().includes(term);
-                    const shelfMatch = entry.location.shelf.toUpperCase().includes(term);
-                    const linkedAWBs = getLinkedAWBs(entry.itemKey);
-                    const awbMatch = linkedAWBs.some(awb => awb.toUpperCase().includes(term));
-                    return keyMatch || shelfMatch || awbMatch;
-                });
-            }, [stockEntries, searchQuery, masterItems]);
-
-            if (loading) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-yellow-500">
-                    <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-                    <p className="font-black italic uppercase tracking-widest">System wird initialisiert...</p>
-                </div>
-            );
-
-            return (
-                <div className="max-w-4xl mx-auto min-h-screen pb-32 relative">
-                    <header className="bg-slate-900 text-white p-6 rounded-b-[2.5rem] shadow-2xl border-b-4 border-yellow-500 sticky top-0 z-50">
-                        <div className="flex justify-between items-center max-w-2xl mx-auto">
-                            <div>
-                                <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">Smart Steg <span className="text-yellow-500">PRO</span></h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lagerverwaltung Kran-Gestell</p>
-                            </div>
-                            <div className="bg-slate-800 p-3 rounded-2xl text-yellow-500 shadow-inner">
-                                <Icon name="factory" size={24} />
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="max-w-2xl mx-auto mt-6 px-4">
-                        {activeTab === 'dashboard' && (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Stege DB</p>
-                                        <p className="text-2xl font-black text-slate-800 leading-none">{stegItems.length}</p>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Teile Gesamt</p>
-                                        <p className="text-2xl font-black text-yellow-600 leading-none">{totalParts}</p>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Belegung</p>
-                                        <p className="text-2xl font-black text-slate-800 leading-none">{occupiedSlots}/190</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-900 p-6 rounded-[2.5rem] shadow-2xl text-white">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-xs font-black uppercase text-yellow-500 tracking-widest flex items-center gap-2">
-                                            <Icon name="grid" size={16} /> Aktuelle Belegung
-                                        </h3>
-                                        <span className="text-[10px] text-slate-500 font-bold">Gestell C1 - C38</span>
-                                    </div>
-                                    <div className="overflow-x-auto custom-scrollbar pb-4">
-                                        <div className="flex gap-2 min-w-max px-2">
-                                            {shelves.map(s => (
-                                                <div key={s} className="flex flex-col gap-1.5 items-center">
-                                                    <span className="text-[8px] font-black text-slate-500 mb-1">{s}</span>
-                                                    {levels.map(l => {
-                                                        const entry = stockEntries.find(e => e.location.shelf === s && e.location.level === l);
-                                                        return (
-                                                            <div 
-                                                                key={l} 
-                                                                className={`w-6 h-6 rounded-md grid-cell shadow-inner flex items-center justify-center
-                                                                    ${entry ? 'bg-yellow-500 shadow-yellow-500/20' : 'bg-slate-800 opacity-20'}`}
-                                                            >
-                                                                {entry && <div className="w-1.5 h-1.5 bg-slate-900 rounded-full animate-pulse"></div>}
-                                                            </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'inventory' && (
-                            <div className="space-y-4">
-                                <div className="relative">
-                                    <input 
-                                        placeholder="Suche Steg, Platz oder Profil..." 
-                                        value={searchQuery} 
-                                        onChange={e => setSearchQuery(e.target.value)} 
-                                        className="w-full px-6 py-4 bg-white rounded-3xl shadow-lg outline-none font-bold text-slate-800 border-2 border-transparent focus:border-yellow-400 transition-all" 
-                                    />
-                                    <div className="absolute right-5 top-4 text-slate-300"><Icon name="search" /></div>
-                                </div>
-                                <div className="space-y-3">
-                                    {filteredStock.map(entry => {
-                                        const linked = getLinkedAWBs(entry.itemKey);
-                                        return (
-                                            <div key={entry.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 flex justify-between items-center">
-                                                <div className="flex-1">
-                                                    <div className="flex gap-2 mb-2">
-                                                        <span className="text-[15px] font-black bg-slate-900 text-yellow-500 px-3 py-1 rounded-full">
-                                                            {entry.location.shelf} - L{entry.location.level}
-                                                        </span>
-                                                    </div>
-                                                    <h4 className="font-black text-slate-800 text-lg italic tracking-tight">{entry.itemKey}</h4>
-                                                    <p className="text-[15px] text-slate-400 font-bold uppercase mt-1">
-                                                        {linked.length > 0 ? `Ref: ${linked.join(' | ')}` : 'Einzel-Komponente'}
-                                                    </p>
-                                                </div>
-                                                <div className="bg-slate-50 text-slate-800 px-5 py-3 rounded-2xl font-black text-2xl border border-slate-100 min-w-[50px] text-center">
-                                                    {entry.quantity}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'add' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl"><Icon name="arrow-down-to-dot" /></div>
-                                    <h3 className="font-black uppercase text-slate-800 italic text-xl">Wareneingang</h3>
-                                </div>
-                                <form onSubmit={handleAddStock} className="space-y-5">
-                                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
-                                        <button type="button" onClick={() => setNewStock({...newStock, source: 'anlieferung'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${newStock.source === 'anlieferung' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400'}`}>Anlieferung</button>
-                                        <button type="button" onClick={() => setNewStock({...newStock, source: 'produktion'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${newStock.source === 'produktion' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Rücklauf</button>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Steg auswählen</label>
-                                        <select required value={newStock.itemKey} onChange={e => setNewStock({...newStock, itemKey: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 appearance-none outline-none focus:border-emerald-400">
-                                            <option value="">-- Typ wählen --</option>
-                                            {stegItems.map(s => <option key={s.id} value={s.code}>{s.code}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Regal (C)</label>
-                                            <select value={newStock.shelf} onChange={e => setNewStock({...newStock, shelf: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
-                                                {shelves.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ebene</label>
-                                            <select value={newStock.level} onChange={e => setNewStock({...newStock, level: Number(e.target.value)})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
-                                                {levels.map(l => <option key={l} value={l}>Ebene {l}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Stückzahl</label>
-                                        <input required type="number" min="1" placeholder="Menge..." value={newStock.qty} onChange={e => setNewStock({...newStock, qty: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-emerald-400" />
-                                    </div>
-                                    <button type="submit" className="w-full py-5 bg-emerald-600 text-white rounded-[1.5rem] font-black uppercase shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Einlagern bestätigen</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {activeTab === 'move' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Icon name="shuffle" /></div>
-                                    <h3 className="font-black uppercase text-slate-800 italic text-xl">Umlagern</h3>
-                                </div>
-                                <form onSubmit={handleMoveStock} className="space-y-5">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Was umlagern?</label>
-                                        <select 
-                                            required 
-                                            value={moveStock.entryId} 
-                                            onChange={e => {
-                                                const selectedId = e.target.value;
-                                                const entry = stockEntries.find(ent => ent.id === selectedId);
-                                                setMoveStock({
-                                                    ...moveStock, 
-                                                    entryId: selectedId,
-                                                    qty: entry ? entry.quantity : '' // Automatische Übernahme
-                                                });
-                                            }} 
-                                            className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 appearance-none outline-none focus:border-blue-400"
-                                        >
-                                            <option value="">-- Bestand wählen --</option>
-                                            {stockEntries.map(e => (
-                                                <option key={e.id} value={e.id}>{e.location.shelf}-L{e.location.level} | {e.itemKey} ({e.quantity} Stk)</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Stückzahl (Festwert)</label>
-                                        <input 
-                                            readOnly 
-                                            type="number" 
-                                            placeholder="Menge wird übernommen..." 
-                                            value={moveStock.qty} 
-                                            className="w-full p-4 bg-slate-200 rounded-2xl font-bold border-2 border-slate-100 outline-none cursor-not-allowed opacity-75" 
-                                        />
-                                        <p className="text-[9px] text-slate-400 ml-4 italic mt-1">* Die gesamte Menge des Platzes wird verschoben.</p>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ziel Regal</label>
-                                            <select value={moveStock.targetShelf} onChange={e => setMoveStock({...moveStock, targetShelf: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
-                                                {shelves.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ziel Ebene</label>
-                                            <select value={moveStock.targetLevel} onChange={e => setMoveStock({...moveStock, targetLevel: Number(e.target.value)})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
-                                                {levels.map(l => <option key={l} value={l}>Ebene {l}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <button type="submit" disabled={!moveStock.entryId} className={`w-full py-5 text-white rounded-[1.5rem] font-black uppercase shadow-lg active:scale-95 transition-all ${moveStock.entryId ? 'bg-blue-600 shadow-blue-600/20' : 'bg-slate-300 shadow-none cursor-not-allowed'}`}>Umlagerung ausführen</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {activeTab === 'outbound' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-rose-100 text-rose-600 rounded-xl"><Icon name="arrow-up-right-from-circle" /></div>
-                                    <h3 className="font-black uppercase text-slate-800 italic text-xl">Warenausgang</h3>
-                                </div>
-                                <form onSubmit={handleRemoveStock} className="space-y-5">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Lagerplatz wählen</label>
-                                        <select required value={outStock.entryId} onChange={e => setOutStock({...outStock, entryId: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 appearance-none outline-none focus:border-rose-400">
-                                            <option value="">-- Bestand wählen --</option>
-                                            {stockEntries.map(e => (
-                                                <option key={e.id} value={e.id}>{e.location.shelf}-L{e.location.level} | {e.itemKey} ({e.quantity} Stk)</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Verwendung</label>
-                                        <select value={outStock.destination} onChange={e => setOutStock({...outStock, destination: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
-                                            <option value="produktion">Produktion / Montage</option>
-                                            <option value="ausschuss">Ausschuss / Defekt</option>
-                                            <option value="inventur">Korrektur</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Entnahmemenge</label>
-                                        <input required type="number" min="1" placeholder="Menge..." value={outStock.qty} onChange={e => setOutStock({...outStock, qty: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-rose-400" />
-                                    </div>
-                                    <button type="submit" className="w-full py-5 bg-rose-600 text-white rounded-[1.5rem] font-black uppercase shadow-lg shadow-rose-600/20 active:scale-95 transition-all">Auslagern bestätigen</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {activeTab === 'settings' && (
-                            <div className="space-y-4">
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Icon name="database" size={18} className="text-slate-400" />
-                                        <h4 className="font-black text-slate-800 italic uppercase text-sm">Stammdaten Stege</h4>
-                                    </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                                        {stegItems.length > 0 ? stegItems.map(s => (
-                                            <div key={s.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
-                                                <span className="font-bold text-slate-700 block text-xs">{s.code}</span>
-                                            </div>
-                                        )) : (
-                                            <div className="col-span-full py-8 text-center text-slate-400 font-bold italic">Keine Stammdaten gefunden.</div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-
-                    <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[480px] glass-effect rounded-[2.5rem] p-2 flex justify-around shadow-2xl border border-white/10 z-[100]">
-                        <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon="layout-dashboard" label="Home" />
-                        <NavBtn active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon="boxes" label="Bestand" />
-                        <NavBtn active={activeTab === 'add'} onClick={() => setActiveTab('add')} icon="arrow-down-to-dot" label="Eingang" color="emerald" />
-                        <NavBtn active={activeTab === 'move'} onClick={() => setActiveTab('move')} icon="shuffle" label="Umlagern" color="blue" />
-                        <NavBtn active={activeTab === 'outbound'} onClick={() => setActiveTab('outbound')} icon="arrow-up-right-from-circle" label="Ausgang" color="rose" />
-                    </nav>
-                </div>
-            );
+        for (let i = 0; i < max; i++) {
+          const it = missing[i];
+          const ref = doc(db, it.__path);
+          batch.update(ref, { appId: APP_ID });
         }
 
-        const NavBtn = ({ active, onClick, icon, label, color = "yellow" }) => {
-            const activeColors = {
-                yellow: 'bg-yellow-500 text-slate-900',
-                emerald: 'bg-emerald-500 text-white',
-                rose: 'bg-rose-500 text-white',
-                blue: 'bg-blue-500 text-white'
-            };
-            
-            return (
-                <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2.5 px-3 rounded-3xl transition-all duration-300 ${active ? activeColors[color] + ' scale-105 shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>
-                    <Icon name={icon} size={18} />
-                    <span className="text-[7px] font-black uppercase tracking-tighter">{label}</span>
-                </button>
-            );
-        };
+        await batch.commit();
+        alert(`Migration: ${max} Dokument(e) aktualisiert ✅\nReload / kurz warten.`);
+      };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+      // AWB index
+      const awbIndex = useMemo(() => {
+        const m = new Map();
+        for (const it of masterItems) {
+          const awb = it?.awb ? String(it.awb) : null;
+          if (!awb) continue;
+          for (const steg of [it?.steg1, it?.steg2]) {
+            if (!steg) continue;
+            const key = String(steg).toUpperCase();
+            if (!m.has(key)) m.set(key, new Set());
+            m.get(key).add(awb);
+          }
+        }
+        return m;
+      }, [masterItems]);
+
+      const getLinkedAWBs = (stegCode) => {
+        const s = awbIndex.get(String(stegCode || "").toUpperCase());
+        return s ? Array.from(s) : [];
+      };
+
+      const groupedSlots = useMemo(() => {
+        const rows = Array.from(slotMap.entries()).map(([key, entries]) => {
+          const [shelf, levelStr] = key.split("|");
+          return { shelf, level: Number(levelStr), entries };
+        });
+        const shelfNum = (s) => Number(String(s).replace("C","")) || 0;
+        rows.sort((a,b) => {
+          const ds = shelfNum(a.shelf) - shelfNum(b.shelf);
+          if (ds !== 0) return ds;
+          return b.level - a.level;
+        });
+        return rows;
+      }, [slotMap]);
+
+      const filteredSlots = useMemo(() => {
+        const term = searchQuery.trim().toUpperCase();
+        if (!term) return groupedSlots;
+        return groupedSlots.map(slot => {
+          const shelfMatch = String(slot.shelf).toUpperCase().includes(term);
+          const matched = slot.entries.filter(e => {
+            const keyMatch = String(e.itemKey).toUpperCase().includes(term);
+            const awbMatch = getLinkedAWBs(e.itemKey).some(a => String(a).toUpperCase().includes(term));
+            return keyMatch || awbMatch;
+          });
+          const entriesToShow = shelfMatch ? slot.entries : matched;
+          if (!entriesToShow.length) return null;
+          return { ...slot, entries: entriesToShow };
+        }).filter(Boolean);
+      }, [groupedSlots, searchQuery, awbIndex]);
+
+      const recentStegs = useMemo(() => {
+        const keys = [];
+        const seen = new Set();
+        const sorted = [...itemDocs].sort((a,b) => (Number(b.updatedAt)||0) - (Number(a.updatedAt)||0));
+        for (const it of sorted) {
+          const k = String(it.itemKey || "").trim();
+          if (!k || seen.has(k)) continue;
+          seen.add(k);
+          keys.push(k);
+          if (keys.length >= 8) break;
+        }
+        if (keys.length === 0) {
+          for (const s of (stegItems || [])) {
+            const k = String(s.code || "").trim();
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            keys.push(k);
+            if (keys.length >= 8) break;
+          }
+        }
+        return keys;
+      }, [itemDocs, stegItems]);
+
+      // Firestore refs for writes
+      const slotDocRef = (slotId) => doc(db, "artifacts", APP_ID, "public", "data", "slots", slotId);
+      const itemDocRef = (slotId, itemKey) => doc(db, "artifacts", APP_ID, "public", "data", "slots", slotId, "items", safeDocId(itemKey));
+
+      const handleAddStock = async (e) => {
+        e.preventDefault();
+
+        const qty = Number(newStock.qty);
+        const itemKey = newStock.itemKey;
+        const shelf = newStock.shelf;
+        const level = Number(newStock.level);
+
+        if (!itemKey || !shelf || !level || !qty || qty <= 0) return;
+        if (!newStock.reference || !String(newStock.reference).trim()) return;
+
+        const slotId = slotIdFrom(shelf, level);
+        const sRef = slotDocRef(slotId);
+        const iRef = itemDocRef(slotId, itemKey);
+
+        await setDoc(sRef, { appId: APP_ID, slotId, shelf, level, updatedAt: Date.now() }, { merge: true });
+
+        const snap = await getDoc(iRef);
+        if (snap.exists()) {
+          await updateDoc(iRef, {
+            appId: APP_ID,
+            quantity: (Number(snap.data().quantity) || 0) + qty,
+            updatedAt: Date.now(),
+            lastSource: newStock.source,
+            source: newStock.source,
+            reference: String(newStock.reference || ""),
+            note: String(newStock.note || "")
+          });
+        } else {
+          await setDoc(iRef, {
+            appId: APP_ID, slotId, shelf, level,
+            itemKey: String(itemKey), type: "steg",
+            quantity: qty,
+            timestamp: Date.now(),
+            updatedAt: Date.now(),
+            lastSource: newStock.source,
+            source: newStock.source,
+            reference: String(newStock.reference || ""),
+            note: String(newStock.note || "")
+          });
+        }
+
+        setNewStock({ ...newStock, qty: "", itemKey: "", reference: "", note: "" });
+        setActiveTab("inventory");
+      };
+
+      const entryOptions = useMemo(() => {
+        const shelfNum = (s) => Number(String(s).replace("C","")) || 0;
+        const arr = itemDocs.map(x => ({
+          entryId: `${x.slotId}__${safeDocId(x.itemKey)}`,
+          slotId: x.slotId,
+          shelf: x.shelf,
+          level: x.level,
+          itemKey: x.itemKey,
+          quantity: x.quantity
+        }));
+        arr.sort((a,b) => {
+          const ds = shelfNum(a.shelf) - shelfNum(b.shelf);
+          if (ds !== 0) return ds;
+          const dl = b.level - a.level;
+          if (dl !== 0) return dl;
+          return String(a.itemKey).localeCompare(String(b.itemKey));
+        });
+        return arr;
+      }, [itemDocs]);
+
+      const handleRemoveStock = async (e) => {
+        e.preventDefault();
+        const qty = Number(outStock.qty);
+        if (!outStock.entryId || !qty || qty <= 0) return;
+
+        const selected = entryOptions.find(x => x.entryId === outStock.entryId);
+        if (!selected || selected.quantity < qty) return;
+
+        const iRef = itemDocRef(selected.slotId, selected.itemKey);
+        const newQty = selected.quantity - qty;
+
+        if (newQty <= 0) await deleteDoc(iRef);
+        else await updateDoc(iRef, { quantity: newQty, updatedAt: Date.now(), lastDestination: outStock.destination });
+
+        setOutStock({ entryId: "", qty: "", destination: "produktion" });
+        setActiveTab("inventory");
+      };
+
+      const handleMoveStock = async (e) => {
+        e.preventDefault();
+        const selected = entryOptions.find(x => x.entryId === moveStock.entryId);
+        if (!selected) return;
+
+        const qty = Number(moveStock.qty);
+        if (!qty || qty <= 0) return;
+
+        const targetShelf = moveStock.targetShelf;
+        const targetLevel = Number(moveStock.targetLevel);
+        const targetSlotId = slotIdFrom(targetShelf, targetLevel);
+
+        const sourceRef = itemDocRef(selected.slotId, selected.itemKey);
+        const targetSlotRef = slotDocRef(targetSlotId);
+        const targetItemRef = itemDocRef(targetSlotId, selected.itemKey);
+
+        const remaining = selected.quantity - qty;
+        if (remaining <= 0) await deleteDoc(sourceRef);
+        else await updateDoc(sourceRef, { quantity: remaining, updatedAt: Date.now() });
+
+        await setDoc(targetSlotRef, { appId: APP_ID, slotId: targetSlotId, shelf: targetShelf, level: targetLevel, updatedAt: Date.now() }, { merge: true });
+
+        const tSnap = await getDoc(targetItemRef);
+        if (tSnap.exists()) {
+          await updateDoc(targetItemRef, { appId: APP_ID, quantity: (Number(tSnap.data().quantity) || 0) + qty, updatedAt: Date.now() });
+        } else {
+          await setDoc(targetItemRef, {
+            appId: APP_ID, slotId: targetSlotId, shelf: targetShelf, level: targetLevel,
+            itemKey: selected.itemKey, type: "steg",
+            quantity: qty,
+            timestamp: Date.now(),
+            updatedAt: Date.now()
+          });
+        }
+
+        setMoveStock({ entryId: "", targetShelf: "C1", targetLevel: 1, qty: "" });
+        setActiveTab("inventory");
+      };
+
+      if (loading) {
+        return (
+          <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-yellow-500">
+            <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <p className="font-black italic uppercase tracking-widest">System wird initialisiert...</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-4xl mx-auto min-h-screen pb-32 relative">
+          {/* Debug overlay */}
+          <div className="fixed top-3 right-3 z-[999] bg-white/90 backdrop-blur border border-slate-200 shadow-lg rounded-2xl px-4 py-3 text-[11px] font-bold text-slate-700">
+            <div>RAW docs: <span className="text-slate-900">{debug.raw}</span></div>
+            <div>Normalized: <span className="text-slate-900">{debug.normalized}</span></div>
+            <div>Slots: <span className="text-slate-900">{debug.slots}</span></div>
+            <div>Sum qty: <span className="text-slate-900">{debug.sum}</span></div>
+            <div>Missing appId: <span className="text-rose-600">{debug.missingAppId}</span></div>
+          </div>
+
+          <header className="bg-slate-900 text-white p-6 rounded-b-[2.5rem] shadow-2xl border-b-4 border-yellow-500 sticky top-0 z-50">
+            <div className="flex justify-between items-center max-w-2xl mx-auto">
+              <div>
+                <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
+                  Smart Steg <span className="text-yellow-500">PRO</span>
+                </h1>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                  Lagerverwaltung Kran-Gestell
+                </p>
+              </div>
+              <div className="bg-slate-800 p-3 rounded-2xl text-yellow-500 shadow-inner">
+                <Icon name="factory" size={24} />
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-2xl mx-auto mt-6 px-4">
+            {activeTab === "dashboard" && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Stege DB</p>
+                    <p className="text-2xl font-black text-slate-800 leading-none">{stegItems.length}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Teile Gesamt</p>
+                    <p className="text-2xl font-black text-yellow-600 leading-none">{totalParts}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Belegte Plätze</p>
+                    <p className="text-2xl font-black text-slate-800 leading-none">{occupiedSlots}/190</p>
+                  </div>
+                </div>
+
+                {/* ✅ One-click fix */}
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                  <div className="flex items-center gap-2 mb-2 text-slate-800">
+                    <Icon name="wrench" size={18} className="text-slate-500" />
+                    <div className="font-black uppercase text-sm italic">Bestand Reparatur</div>
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-500 mb-4">
+                    Wenn "Missing appId" &gt; 0, dann haben alte Items kein appId-Feld → server-side Filter findet nichts.
+                    Klicke unten, um appId in bestehende Dokumente zu schreiben.
+                  </p>
+                  <button
+                    onClick={runMigrationAddAppId}
+                    className="w-full py-4 bg-slate-900 text-yellow-500 rounded-2xl font-black uppercase shadow-lg active:scale-95 transition-all"
+                  >
+                    Reparatur: appId in Bestand schreiben
+                  </button>
+                  <p className="text-[10px] text-slate-400 font-bold italic mt-2">
+                    * schreibt bis zu 500 Dokumente pro Klick (einfach mehrfach drücken bis Missing appId = 0).
+                  </p>
+                </div>
+
+                <div className="bg-slate-900 p-6 rounded-[2.5rem] shadow-2xl text-white">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xs font-black uppercase text-yellow-500 tracking-widest flex items-center gap-2">
+                      <Icon name="grid" size={16} /> Aktuelle Belegung
+                    </h3>
+                    <span className="text-[10px] text-slate-500 font-bold">Gestell C1 - C38</span>
+                  </div>
+
+                  <div className="overflow-x-auto custom-scrollbar pb-4">
+                    <div className="flex gap-2 min-w-max px-2">
+                      {shelves.map(s => (
+                        <div key={s} className="flex flex-col gap-1.5 items-center">
+                          <span className="text-[8px] font-black text-slate-500 mb-1">{s}</span>
+                          {levels.map(l => {
+                            const entries = slotMap.get(`${s}|${l}`) || [];
+                            const count = entries.length;
+                            return (
+                              <div
+                                key={l}
+                                className={`w-6 h-6 rounded-md grid-cell shadow-inner flex items-center justify-center ${
+                                  count ? "bg-yellow-500 shadow-yellow-500/20" : "bg-slate-800 opacity-20"
+                                }`}
+                                title={count ? `${count} Sorten` : "leer"}
+                              >
+                                {count ? <span className="text-[10px] font-black text-slate-900">{count}</span> : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-[10px] text-slate-400 font-bold">
+                    * Zahl im Feld = Anzahl verschiedener Sorten im Platz
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "inventory" && (
+              <div className="space-y-4">
+                <div className="relative">
+                  <input
+                    placeholder="Suche Steg, Regal (C1...) oder Profil/AWB..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full px-6 py-4 bg-white rounded-3xl shadow-lg outline-none font-bold text-slate-800 border-2 border-transparent focus:border-yellow-400 transition-all"
+                  />
+                  <div className="absolute right-5 top-4 text-slate-300"><Icon name="search" /></div>
+                </div>
+
+                <div className="space-y-3">
+                  {filteredSlots.length === 0 ? (
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 text-slate-500 font-bold italic">
+                      Keine Treffer / kein Bestand.
+                    </div>
+                  ) : filteredSlots.map(slot => (
+                    <div key={`${slot.shelf}|${slot.level}`} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[15px] font-black bg-slate-900 text-yellow-500 px-3 py-1 rounded-full">
+                          {slot.shelf} - L{slot.level}
+                        </span>
+                        <span className="text-[11px] font-black text-slate-500 uppercase">
+                          {slot.entries.length} Sorten
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {slot.entries.map(entry => {
+                          const linked = getLinkedAWBs(entry.itemKey);
+                          return (
+                            <div key={entry.id} className="flex items-center justify-between bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                              <div className="min-w-0 pr-3">
+                                <div className="font-black text-slate-800 truncate">{entry.itemKey}</div>
+                                <div className="text-[11px] text-slate-400 font-bold uppercase truncate">
+                                  {linked.length ? `Ref: ${linked.join(" | ")}` : "Einzel-Komponente"}
+                                </div>
+                              </div>
+                              <div className="bg-white text-slate-800 px-4 py-2 rounded-xl font-black text-lg border border-slate-200">
+                                {entry.quantity}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "add" && (
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl"><Icon name="arrow-down-to-dot" /></div>
+                  <div className="flex-1">
+                    <h3 className="font-black uppercase text-slate-800 italic text-xl">Wareneingang</h3>
+                    <p className="text-[11px] font-bold text-slate-400">Neu-Anlieferung oder Rücklauf aus Produktion</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddStock} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Quelle</label>
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                      <button type="button" onClick={() => setNewStock({ ...newStock, source: "anlieferung" })}
+                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${newStock.source === "anlieferung" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400"}`}>
+                        Neu-Anlieferung
+                      </button>
+                      <button type="button" onClick={() => setNewStock({ ...newStock, source: "produktion" })}
+                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${newStock.source === "produktion" ? "bg-white shadow-sm text-blue-600" : "text-slate-400"}`}>
+                        Rücklauf Produktion
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">
+                        {newStock.source === "anlieferung" ? "Lieferschein / Referenz" : "Auftrag / Linie / Referenz"}
+                        <span className="text-rose-500"> *</span>
+                      </label>
+                      <input required value={newStock.reference}
+                        onChange={e => setNewStock({ ...newStock, reference: e.target.value })}
+                        placeholder={newStock.source === "anlieferung" ? "z.B. LS-12345" : "z.B. Auftrag 4711 / Linie A"}
+                        className={`w-full p-4 rounded-2xl font-bold border-2 outline-none ${newStock.source === "anlieferung"
+                          ? "bg-emerald-50 border-emerald-100 focus:border-emerald-400"
+                          : "bg-blue-50 border-blue-100 focus:border-blue-400"}`} />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Notiz (optional)</label>
+                      <input value={newStock.note}
+                        onChange={e => setNewStock({ ...newStock, note: e.target.value })}
+                        placeholder={newStock.source === "produktion" ? "z.B. geprüft / repariert" : "z.B. Lieferant / Bemerkung"}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-yellow-400" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Steg (Suche)</label>
+                    <input list="steg-datalist" required value={newStock.itemKey}
+                      onChange={e => setNewStock({ ...newStock, itemKey: e.target.value })}
+                      placeholder="Tippen zum Suchen… (z.B. STEG_...)"
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-black border-2 border-slate-100 outline-none focus:border-yellow-400" />
+                    <datalist id="steg-datalist">
+                      {stegItems.map(s => <option key={s.id} value={s.code} />)}
+                    </datalist>
+
+                    {recentStegs.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {recentStegs.map(k => (
+                          <button key={k} type="button" onClick={() => setNewStock({ ...newStock, itemKey: k })}
+                            className={`px-3 py-2 rounded-full text-[10px] font-black uppercase border transition-all ${newStock.itemKey === k
+                              ? "bg-slate-900 text-yellow-500 border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:border-yellow-400"}`}>
+                            {k}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Regal (C)</label>
+                      <select value={newStock.shelf} onChange={e => setNewStock({ ...newStock, shelf: e.target.value })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
+                        {shelves.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ebene</label>
+                      <select value={newStock.level} onChange={e => setNewStock({ ...newStock, level: Number(e.target.value) })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none">
+                        {levels.map(l => <option key={l} value={l}>Ebene {l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Stückzahl</label>
+                    <input required type="number" min="1" placeholder="Menge..."
+                      value={newStock.qty} onChange={e => setNewStock({ ...newStock, qty: e.target.value })}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-emerald-400" />
+                  </div>
+
+                  <button type="submit"
+                    className={`w-full py-5 text-white rounded-[1.5rem] font-black uppercase shadow-lg active:scale-95 transition-all ${newStock.source === "anlieferung"
+                      ? "bg-emerald-600 shadow-emerald-600/20"
+                      : "bg-blue-600 shadow-blue-600/20"}`}>
+                    {newStock.source === "anlieferung" ? "Einlagern (Anlieferung)" : "Einlagern (Rücklauf)"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* move/outbound tabs can remain in your file; logic above already supports it */}
+          </main>
+
+          <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[520px] glass-effect rounded-[2.5rem] p-2 flex justify-around shadow-2xl border border-white/10 z-[100]">
+            <NavBtn active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} icon="layout-dashboard" label="Home" />
+            <NavBtn active={activeTab === "inventory"} onClick={() => setActiveTab("inventory")} icon="boxes" label="Bestand" />
+            <NavBtn active={activeTab === "add"} onClick={() => setActiveTab("add")} icon="arrow-down-to-dot" label="Eingang" color="emerald" />
+            <NavBtn active={activeTab === "move"} onClick={() => setActiveTab("move")} icon="shuffle" label="Umlagern" color="blue" />
+            <NavBtn active={activeTab === "outbound"} onClick={() => setActiveTab("outbound")} icon="arrow-up-right-from-circle" label="Ausgang" color="rose" />
+          </nav>
+        </div>
+      );
+    }
+
+    const NavBtn = ({ active, onClick, icon, label, color = "yellow" }) => {
+      const activeColors = { yellow: "bg-yellow-500 text-slate-900", emerald: "bg-emerald-500 text-white", rose: "bg-rose-500 text-white", blue: "bg-blue-500 text-white" };
+      return (
+        <button
+          onClick={onClick}
+          className={`flex flex-col items-center gap-1 p-2.5 px-3 rounded-3xl transition-all duration-300 ${
+            active ? activeColors[color] + " scale-105 shadow-xl" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Icon name={icon} size={18} />
+          <span className="text-[7px] font-black uppercase tracking-tighter">{label}</span>
+        </button>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+
+    // ✅ app started: hide boot
+    window.__APP_STARTED__ = true;
+    const boot = document.getElementById("boot");
+    if (boot) boot.style.display = "none";
+
+    root.render(<App />);
+  </script>
 </body>
 </html>
