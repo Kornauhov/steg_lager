@@ -24,77 +24,51 @@
 </head>
 
 <body class="bg-slate-50">
-  <!-- Boot screen -->
-  <div id="boot" style="
-    position:fixed; inset:0; display:flex; flex-direction:column; gap:12px;
-    align-items:center; justify-content:center;
-    background:#0f172a; color:#facc15;
-    font:900 14px/1.4 Inter,system-ui,sans-serif;
-    letter-spacing:.12em; text-transform:uppercase;
-    z-index:999999; padding:24px; text-align:center;
-  ">
-    <div style="font-size:18px; letter-spacing:.18em;">Smart Steg PRO lädt…</div>
-    <div style="color:#94a3b8; font-weight:800; letter-spacing:.08em; text-transform:none; font-size:12px; max-width:560px;">
-      Wenn das nicht verschwindet: Scripts starten nicht oder es gibt einen JS-Fehler.
-    </div>
-    <div id="bootHint" style="display:none; color:#fb7185; font-weight:900; letter-spacing:.06em; text-transform:none; font-size:12px; max-width:560px;">
-      App ist nicht gestartet. Bitte Browser-Konsole öffnen (F12 → Console).
-    </div>
-    <div style="margin-top:6px; width:56px; height:56px; border-radius:999px; border:5px solid #facc15; border-top-color:transparent; animation:spin 1s linear infinite;"></div>
-  </div>
+  <!-- ✅ Error overlay so white screen becomes a readable error -->
+  <script>
+    (function () {
+      function show(msg) {
+        document.body.innerHTML =
+          "<pre style='white-space:pre-wrap;padding:16px;font:14px/1.4 monospace;background:#0b1220;color:#fca5a5'>" +
+          msg + "</pre>";
+      }
 
-  <style>
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+      window.addEventListener("error", (e) => {
+        const msg =
+          "JS ERROR:\n" + (e.message || e.error) + "\n\n" +
+          (e.filename ? (e.filename + ":" + e.lineno + ":" + e.colno + "\n\n") : "") +
+          (e.error && e.error.stack ? e.error.stack : "");
+        show(msg);
+      });
+
+      window.addEventListener("unhandledrejection", (e) => {
+        const msg =
+          "PROMISE ERROR:\n" + (e.reason?.message || e.reason) + "\n\n" +
+          (e.reason?.stack || "");
+        show(msg);
+      });
+
+      // Warn if opened via file://
+      if (location.protocol === "file:") {
+        console.warn("You opened via file://. Use a local server (http://localhost:...) for Firebase ESM imports.");
+      }
+    })();
+  </script>
 
   <div id="root"></div>
 
-  <script>
-    window.__APP_STARTED__ = false;
-    setTimeout(() => {
-      if (!window.__APP_STARTED__) {
-        const hint = document.getElementById("bootHint");
-        if (hint) hint.style.display = "block";
-      }
-    }, 4000);
-
-    window.addEventListener("error", (e) => {
-      const boot = document.getElementById("boot");
-      if (!boot) return;
-      boot.style.background = "#0b1220";
-      boot.style.color = "#fca5a5";
-      boot.innerHTML =
-        "<pre style='white-space:pre-wrap;max-width:960px;text-align:left;font:14px/1.4 ui-monospace,monospace;color:#fca5a5'>" +
-        "JS ERROR:\\n" + (e.message || e.error) + "\\n\\n" +
-        (e.filename ? (e.filename + ':' + e.lineno + ':' + e.colno + \"\\n\\n\") : \"\") +
-        (e.error && e.error.stack ? e.error.stack : \"\") +
-        "</pre>";
-    });
-
-    window.addEventListener("unhandledrejection", (e) => {
-      const boot = document.getElementById("boot");
-      if (!boot) return;
-      boot.style.background = "#0b1220";
-      boot.style.color = "#fca5a5";
-      boot.innerHTML =
-        "<pre style='white-space:pre-wrap;max-width:960px;text-align:left;font:14px/1.4 ui-monospace,monospace;color:#fca5a5'>" +
-        "PROMISE ERROR:\\n" + (e.reason?.message || e.reason) + "\\n\\n" +
-        (e.reason?.stack || \"\") +
-        "</pre>";
-    });
-  </script>
-
+  <!-- ✅ Firebase SDK loader (ESM). Needs http(s) to work reliably -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import {
       getFirestore, collection, collectionGroup, doc, setDoc,
-      onSnapshot, deleteDoc, updateDoc, getDoc, query, where, limit
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where
     } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
     window.FirebaseSDK = {
       initializeApp, getFirestore, collection, collectionGroup, doc, setDoc,
-      onSnapshot, deleteDoc, updateDoc, getDoc, query, where, limit,
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where,
       getAuth, signInAnonymously, onAuthStateChanged
     };
   </script>
@@ -102,16 +76,18 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
+    // ✅ Fail fast if FirebaseSDK didn't load
     if (!window.FirebaseSDK) {
-      throw new Error("FirebaseSDK wurde nicht geladen (CSP/Module blockiert oder Netzwerk).");
+      throw new Error("FirebaseSDK wurde nicht geladen. Öffne die Seite über http:// (lokaler Server), nicht file://");
     }
 
     const {
       initializeApp, getFirestore, collection, collectionGroup, doc, setDoc,
-      onSnapshot, deleteDoc, updateDoc, getDoc, query, where, limit,
+      onSnapshot, deleteDoc, updateDoc, getDoc, query, where,
       getAuth, signInAnonymously, onAuthStateChanged
     } = window.FirebaseSDK;
 
+    // Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyBGqPXXcmJTbL3PVrn-PKL0Gig45r6GPbQ",
       authDomain: "steg-lager-test.firebaseapp.com",
@@ -127,6 +103,7 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // App-ID bleibt public
     const APP_ID = "stege-lager-v1";
 
     const Icon = ({ name, size = 20, className = "" }) => {
@@ -143,6 +120,7 @@
       if (idx === -1) return { slotId: null, shelf: null, level: null };
       const slotId = parts[idx + 1] || null;
       if (!slotId) return { slotId: null, shelf: null, level: null };
+
       const m = String(slotId).match(/^(.+)_L(\d+)$/);
       if (!m) return { slotId, shelf: null, level: null };
       return { slotId, shelf: m[1], level: Number(m[2]) };
@@ -156,17 +134,22 @@
       const [rawItems, setRawItems] = useState([]);
       const [stegItems, setStegItems] = useState([]);
       const [masterItems, setMasterItems] = useState([]);
+
       const [searchQuery, setSearchQuery] = useState("");
 
+      // Forms
       const [newStock, setNewStock] = useState({
         itemKey: "",
         shelf: "C1",
         level: 1,
         qty: "",
-        source: "anlieferung",
-        reference: "",
-        note: ""
+        source: "anlieferung", // anlieferung | produktion
+        reference: "",         // Pflicht
+        note: ""               // optional
       });
+
+      const [outStock, setOutStock] = useState({ entryId: "", qty: "", destination: "produktion" });
+      const [moveStock, setMoveStock] = useState({ entryId: "", targetShelf: "C1", targetLevel: 1, qty: "" });
 
       const shelves = useMemo(() => Array.from({ length: 38 }, (_, i) => `C${i + 1}`), []);
       const levels = [5, 4, 3, 2, 1];
@@ -185,44 +168,28 @@
         return () => unsub();
       }, []);
 
-      // Items (server-side filter + fallback by path prefix)
+      // Firestore subscriptions
       useEffect(() => {
         if (!user) return;
 
-        const basePrefix = `artifacts/${APP_ID}/public/data/slots/`;
-        let unsubPrimary = null;
-        let unsubFallback = null;
+        const itemsQ = query(
+          collectionGroup(db, "items"),
+          where("appId", "==", APP_ID)
+        );
 
-        const primaryQ = query(collectionGroup(db, "items"), where("appId", "==", APP_ID));
-
-        unsubPrimary = onSnapshot(primaryQ, (snap) => {
-          const docs = snap.docs.map(d => ({ __path: d.ref.path, __id: d.id, ...d.data() }));
-
-          if (docs.length > 0) {
+        const unsubItems = onSnapshot(
+          itemsQ,
+          (snap) => {
+            const docs = snap.docs.map(d => ({
+              __path: d.ref.path,
+              __id: d.id,
+              ...d.data()
+            }));
+            console.log("ITEMS snap:", snap.size);
             setRawItems(docs);
-            if (unsubFallback) { unsubFallback(); unsubFallback = null; }
-            return;
-          }
-
-          if (!unsubFallback) {
-            const fallbackQ = query(collectionGroup(db, "items"), limit(5000));
-            unsubFallback = onSnapshot(fallbackQ, (snap2) => {
-              const all = snap2.docs.map(d => ({ __path: d.ref.path, __id: d.id, ...d.data() }));
-              const filtered = all.filter(x => (x.__path || "").includes(basePrefix));
-              setRawItems(filtered);
-            }, (err) => console.error("Fallback items fetch error:", err));
-          }
-        }, (err) => console.error("Primary items fetch error:", err));
-
-        return () => {
-          if (unsubPrimary) unsubPrimary();
-          if (unsubFallback) unsubFallback();
-        };
-      }, [user]);
-
-      // Steg + Master
-      useEffect(() => {
-        if (!user) return;
+          },
+          (err) => console.error("Items fetch error:", err)
+        );
 
         const unsubSteg = onSnapshot(
           collection(db, "artifacts", APP_ID, "public", "data", "steg_items"),
@@ -242,9 +209,10 @@
           (err) => console.error("Master items fetch error:", err)
         );
 
-        return () => { unsubSteg(); unsubMaster(); };
+        return () => { unsubItems(); unsubSteg(); unsubMaster(); };
       }, [user]);
 
+      // Normalize items
       const itemDocs = useMemo(() => {
         const out = [];
         for (const d of rawItems) {
@@ -252,8 +220,10 @@
           const shelf = d.shelf ?? d.location?.shelf ?? derived.shelf;
           const level = Number(d.level ?? d.location?.level ?? derived.level);
           const slotId = d.slotId ?? derived.slotId ?? (shelf && level ? slotIdFrom(shelf, level) : null);
+
           const itemKey = d.itemKey ?? d.key ?? d.code ?? d.__id;
           const quantity = Number(d.quantity) || 0;
+
           if (!shelf || !level || !slotId || !itemKey || quantity <= 0) continue;
 
           out.push({
@@ -286,11 +256,12 @@
 
       const debug = useMemo(() => ({
         raw: rawItems.length,
-        normalized: itemDocs.length,
+        app: itemDocs.length,
         slots: occupiedSlots,
         sum: totalParts
       }), [rawItems.length, itemDocs.length, occupiedSlots, totalParts]);
 
+      // AWB index
       const awbIndex = useMemo(() => {
         const m = new Map();
         for (const it of masterItems) {
@@ -341,21 +312,189 @@
         }).filter(Boolean);
       }, [groupedSlots, searchQuery, awbIndex]);
 
+      const recentStegs = useMemo(() => {
+        const keys = [];
+        const seen = new Set();
+        const sorted = [...itemDocs].sort((a,b) => (Number(b.updatedAt)||0) - (Number(a.updatedAt)||0));
+        for (const it of sorted) {
+          const k = String(it.itemKey || "").trim();
+          if (!k || seen.has(k)) continue;
+          seen.add(k);
+          keys.push(k);
+          if (keys.length >= 8) break;
+        }
+        if (keys.length === 0) {
+          for (const s of (stegItems || [])) {
+            const k = String(s.code || "").trim();
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            keys.push(k);
+            if (keys.length >= 8) break;
+          }
+        }
+        return keys;
+      }, [itemDocs, stegItems]);
+
+      // Firestore refs
+      const slotDocRef = (slotId) => doc(db, "artifacts", APP_ID, "public", "data", "slots", slotId);
+      const itemDocRef = (slotId, itemKey) => doc(db, "artifacts", APP_ID, "public", "data", "slots", slotId, "items", safeDocId(itemKey));
+
+      const handleAddStock = async (e) => {
+        e.preventDefault();
+
+        const qty = Number(newStock.qty);
+        const itemKey = newStock.itemKey;
+        const shelf = newStock.shelf;
+        const level = Number(newStock.level);
+
+        if (!itemKey || !shelf || !level || !qty || qty <= 0) return;
+        if (!newStock.reference || !String(newStock.reference).trim()) return;
+
+        const slotId = slotIdFrom(shelf, level);
+        const sRef = slotDocRef(slotId);
+        const iRef = itemDocRef(slotId, itemKey);
+
+        try {
+          await setDoc(sRef, { appId: APP_ID, slotId, shelf, level, updatedAt: Date.now() }, { merge: true });
+
+          const snap = await getDoc(iRef);
+          if (snap.exists()) {
+            await updateDoc(iRef, {
+              quantity: (Number(snap.data().quantity) || 0) + qty,
+              updatedAt: Date.now(),
+              lastSource: newStock.source,
+              source: newStock.source,
+              reference: String(newStock.reference || ""),
+              note: String(newStock.note || "")
+            });
+          } else {
+            await setDoc(iRef, {
+              appId: APP_ID, slotId, shelf, level,
+              itemKey: String(itemKey), type: "steg",
+              quantity: qty,
+              timestamp: Date.now(),
+              updatedAt: Date.now(),
+              lastSource: newStock.source,
+              source: newStock.source,
+              reference: String(newStock.reference || ""),
+              note: String(newStock.note || "")
+            });
+          }
+
+          setNewStock({ ...newStock, qty: "", itemKey: "", reference: "", note: "" });
+          setActiveTab("inventory");
+        } catch (err) {
+          console.error("Add error:", err);
+          throw err;
+        }
+      };
+
+      const entryOptions = useMemo(() => {
+        const shelfNum = (s) => Number(String(s).replace("C","")) || 0;
+        const arr = itemDocs.map(x => ({
+          entryId: `${x.slotId}__${safeDocId(x.itemKey)}`,
+          slotId: x.slotId,
+          shelf: x.shelf,
+          level: x.level,
+          itemKey: x.itemKey,
+          quantity: x.quantity
+        }));
+        arr.sort((a,b) => {
+          const ds = shelfNum(a.shelf) - shelfNum(b.shelf);
+          if (ds !== 0) return ds;
+          const dl = b.level - a.level;
+          if (dl !== 0) return dl;
+          return String(a.itemKey).localeCompare(String(b.itemKey));
+        });
+        return arr;
+      }, [itemDocs]);
+
+      const handleRemoveStock = async (e) => {
+        e.preventDefault();
+        const qty = Number(outStock.qty);
+        if (!outStock.entryId || !qty || qty <= 0) return;
+
+        const selected = entryOptions.find(x => x.entryId === outStock.entryId);
+        if (!selected || selected.quantity < qty) return;
+
+        const iRef = itemDocRef(selected.slotId, selected.itemKey);
+        try {
+          const newQty = selected.quantity - qty;
+          if (newQty <= 0) await deleteDoc(iRef);
+          else await updateDoc(iRef, { quantity: newQty, updatedAt: Date.now(), lastDestination: outStock.destination });
+
+          setOutStock({ entryId: "", qty: "", destination: "produktion" });
+          setActiveTab("inventory");
+        } catch (err) {
+          console.error("Remove error:", err);
+          throw err;
+        }
+      };
+
+      const handleMoveStock = async (e) => {
+        e.preventDefault();
+        const selected = entryOptions.find(x => x.entryId === moveStock.entryId);
+        if (!selected) return;
+
+        const qty = Number(moveStock.qty);
+        if (!qty || qty <= 0) return;
+
+        const targetShelf = moveStock.targetShelf;
+        const targetLevel = Number(moveStock.targetLevel);
+        const targetSlotId = slotIdFrom(targetShelf, targetLevel);
+
+        const sourceRef = itemDocRef(selected.slotId, selected.itemKey);
+        const targetSlotRef = slotDocRef(targetSlotId);
+        const targetItemRef = itemDocRef(targetSlotId, selected.itemKey);
+
+        try {
+          const remaining = selected.quantity - qty;
+          if (remaining <= 0) await deleteDoc(sourceRef);
+          else await updateDoc(sourceRef, { quantity: remaining, updatedAt: Date.now() });
+
+          await setDoc(targetSlotRef, { appId: APP_ID, slotId: targetSlotId, shelf: targetShelf, level: targetLevel, updatedAt: Date.now() }, { merge: true });
+
+          const tSnap = await getDoc(targetItemRef);
+          if (tSnap.exists()) {
+            await updateDoc(targetItemRef, { quantity: (Number(tSnap.data().quantity) || 0) + qty, updatedAt: Date.now() });
+          } else {
+            await setDoc(targetItemRef, {
+              appId: APP_ID, slotId: targetSlotId, shelf: targetShelf, level: targetLevel,
+              itemKey: selected.itemKey, type: "steg",
+              quantity: qty,
+              timestamp: Date.now(),
+              updatedAt: Date.now()
+            });
+          }
+
+          setMoveStock({ entryId: "", targetShelf: "C1", targetLevel: 1, qty: "" });
+          setActiveTab("inventory");
+        } catch (err) {
+          console.error("Move error:", err);
+          throw err;
+        }
+      };
+
       if (loading) {
         return (
           <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-yellow-500">
             <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-6"></div>
             <p className="font-black italic uppercase tracking-widest">System wird initialisiert...</p>
+            {location.protocol === "file:" && (
+              <p className="mt-3 text-[11px] text-slate-300 font-bold text-center px-6">
+                Hinweis: Du nutzt <span className="text-yellow-400">file://</span>. Bitte über lokalen Server öffnen (http://localhost:...).
+              </p>
+            )}
           </div>
         );
       }
 
       return (
         <div className="max-w-4xl mx-auto min-h-screen pb-32 relative">
-          {/* Debug overlay (kein Reparatur-Button mehr) */}
+          {/* Debug overlay */}
           <div className="fixed top-3 right-3 z-[999] bg-white/90 backdrop-blur border border-slate-200 shadow-lg rounded-2xl px-4 py-3 text-[11px] font-bold text-slate-700">
             <div>RAW docs: <span className="text-slate-900">{debug.raw}</span></div>
-            <div>Normalized: <span className="text-slate-900">{debug.normalized}</span></div>
+            <div>APP docs: <span className="text-slate-900">{debug.app}</span></div>
             <div>Slots: <span className="text-slate-900">{debug.slots}</span></div>
             <div>Sum qty: <span className="text-slate-900">{debug.sum}</span></div>
           </div>
@@ -485,19 +624,313 @@
                 </div>
               </div>
             )}
+
+            {/* Wareneingang überarbeitet */}
+            {activeTab === "add" && (
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl"><Icon name="arrow-down-to-dot" /></div>
+                  <div className="flex-1">
+                    <h3 className="font-black uppercase text-slate-800 italic text-xl">Wareneingang</h3>
+                    <p className="text-[11px] font-bold text-slate-400">Neu-Anlieferung oder Rücklauf aus Produktion</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddStock} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Quelle</label>
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                      <button
+                        type="button"
+                        onClick={() => setNewStock({ ...newStock, source: "anlieferung" })}
+                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          newStock.source === "anlieferung" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400"
+                        }`}
+                      >
+                        Neu-Anlieferung
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewStock({ ...newStock, source: "produktion" })}
+                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          newStock.source === "produktion" ? "bg-white shadow-sm text-blue-600" : "text-slate-400"
+                        }`}
+                      >
+                        Rücklauf Produktion
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">
+                        {newStock.source === "anlieferung" ? "Lieferschein / Referenz" : "Auftrag / Linie / Referenz"}
+                        <span className="text-rose-500"> *</span>
+                      </label>
+                      <input
+                        required
+                        value={newStock.reference}
+                        onChange={e => setNewStock({ ...newStock, reference: e.target.value })}
+                        placeholder={newStock.source === "anlieferung" ? "z.B. LS-12345" : "z.B. Auftrag 4711 / Linie A"}
+                        className={`w-full p-4 rounded-2xl font-bold border-2 outline-none ${
+                          newStock.source === "anlieferung"
+                            ? "bg-emerald-50 border-emerald-100 focus:border-emerald-400"
+                            : "bg-blue-50 border-blue-100 focus:border-blue-400"
+                        }`}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Notiz (optional)</label>
+                      <input
+                        value={newStock.note}
+                        onChange={e => setNewStock({ ...newStock, note: e.target.value })}
+                        placeholder={newStock.source === "produktion" ? "z.B. geprüft / repariert" : "z.B. Lieferant / Bemerkung"}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-yellow-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Steg (Suche)</label>
+                    <input
+                      list="steg-datalist"
+                      required
+                      value={newStock.itemKey}
+                      onChange={e => setNewStock({ ...newStock, itemKey: e.target.value })}
+                      placeholder="Tippen zum Suchen… (z.B. STEG_...)"
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-black border-2 border-slate-100 outline-none focus:border-yellow-400"
+                    />
+                    <datalist id="steg-datalist">
+                      {stegItems.map(s => <option key={s.id} value={s.code} />)}
+                    </datalist>
+
+                    {recentStegs.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {recentStegs.map(k => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => setNewStock({ ...newStock, itemKey: k })}
+                            className={`px-3 py-2 rounded-full text-[10px] font-black uppercase border transition-all ${
+                              newStock.itemKey === k
+                                ? "bg-slate-900 text-yellow-500 border-slate-900"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-yellow-400"
+                            }`}
+                          >
+                            {k}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Regal (C)</label>
+                      <select
+                        value={newStock.shelf}
+                        onChange={e => setNewStock({ ...newStock, shelf: e.target.value })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none"
+                      >
+                        {shelves.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ebene</label>
+                      <select
+                        value={newStock.level}
+                        onChange={e => setNewStock({ ...newStock, level: Number(e.target.value) })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none"
+                      >
+                        {levels.map(l => <option key={l} value={l}>Ebene {l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Stückzahl</label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      placeholder="Menge..."
+                      value={newStock.qty}
+                      onChange={e => setNewStock({ ...newStock, qty: e.target.value })}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className={`w-full py-5 text-white rounded-[1.5rem] font-black uppercase shadow-lg active:scale-95 transition-all ${
+                      newStock.source === "anlieferung"
+                        ? "bg-emerald-600 shadow-emerald-600/20"
+                        : "bg-blue-600 shadow-blue-600/20"
+                    }`}
+                  >
+                    {newStock.source === "anlieferung" ? "Einlagern (Anlieferung)" : "Einlagern (Rücklauf)"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeTab === "move" && (
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Icon name="shuffle" /></div>
+                  <h3 className="font-black uppercase text-slate-800 italic text-xl">Umlagern</h3>
+                </div>
+
+                <form onSubmit={handleMoveStock} className="space-y-5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Was umlagern?</label>
+                    <select
+                      required
+                      value={moveStock.entryId}
+                      onChange={e => {
+                        const entryId = e.target.value;
+                        const entry = entryOptions.find(x => x.entryId === entryId);
+                        setMoveStock({ ...moveStock, entryId, qty: entry ? entry.quantity : "" });
+                      }}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 appearance-none outline-none focus:border-blue-400"
+                    >
+                      <option value="">-- Bestand wählen --</option>
+                      {entryOptions.map(e => (
+                        <option key={e.entryId} value={e.entryId}>
+                          {e.shelf}-L{e.level} | {e.itemKey} ({e.quantity} Stk)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Stückzahl (Festwert)</label>
+                    <input
+                      readOnly
+                      type="number"
+                      value={moveStock.qty}
+                      className="w-full p-4 bg-slate-200 rounded-2xl font-bold border-2 border-slate-100 outline-none cursor-not-allowed opacity-75"
+                    />
+                    <p className="text-[9px] text-slate-400 ml-4 italic mt-1">* Die gesamte Menge dieses Eintrags wird verschoben.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ziel Regal</label>
+                      <select
+                        value={moveStock.targetShelf}
+                        onChange={e => setMoveStock({ ...moveStock, targetShelf: e.target.value })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none"
+                      >
+                        {shelves.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Ziel Ebene</label>
+                      <select
+                        value={moveStock.targetLevel}
+                        onChange={e => setMoveStock({ ...moveStock, targetLevel: Number(e.target.value) })}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none"
+                      >
+                        {levels.map(l => <option key={l} value={l}>Ebene {l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!moveStock.entryId}
+                    className={`w-full py-5 text-white rounded-[1.5rem] font-black uppercase shadow-lg active:scale-95 transition-all ${
+                      moveStock.entryId ? "bg-blue-600 shadow-blue-600/20" : "bg-slate-300 shadow-none cursor-not-allowed"
+                    }`}
+                  >
+                    Umlagerung ausführen
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeTab === "outbound" && (
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-100 text-rose-600 rounded-xl"><Icon name="arrow-up-right-from-circle" /></div>
+                  <h3 className="font-black uppercase text-slate-800 italic text-xl">Warenausgang</h3>
+                </div>
+
+                <form onSubmit={handleRemoveStock} className="space-y-5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Eintrag wählen</label>
+                    <select
+                      required
+                      value={outStock.entryId}
+                      onChange={e => setOutStock({ ...outStock, entryId: e.target.value })}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 appearance-none outline-none focus:border-rose-400"
+                    >
+                      <option value="">-- Bestand wählen --</option>
+                      {entryOptions.map(e => (
+                        <option key={e.entryId} value={e.entryId}>
+                          {e.shelf}-L{e.level} | {e.itemKey} ({e.quantity} Stk)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Verwendung</label>
+                    <select
+                      value={outStock.destination}
+                      onChange={e => setOutStock({ ...outStock, destination: e.target.value })}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none"
+                    >
+                      <option value="produktion">Produktion / Montage</option>
+                      <option value="ausschuss">Ausschuss / Defekt</option>
+                      <option value="inventur">Korrektur</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Entnahmemenge</label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      placeholder="Menge..."
+                      value={outStock.qty}
+                      onChange={e => setOutStock({ ...outStock, qty: e.target.value })}
+                      className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-slate-100 outline-none focus:border-rose-400"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-5 bg-rose-600 text-white rounded-[1.5rem] font-black uppercase shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
+                  >
+                    Auslagern bestätigen
+                  </button>
+                </form>
+              </div>
+            )}
           </main>
 
           <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[520px] glass-effect rounded-[2.5rem] p-2 flex justify-around shadow-2xl border border-white/10 z-[100]">
             <NavBtn active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} icon="layout-dashboard" label="Home" />
             <NavBtn active={activeTab === "inventory"} onClick={() => setActiveTab("inventory")} icon="boxes" label="Bestand" />
             <NavBtn active={activeTab === "add"} onClick={() => setActiveTab("add")} icon="arrow-down-to-dot" label="Eingang" color="emerald" />
+            <NavBtn active={activeTab === "move"} onClick={() => setActiveTab("move")} icon="shuffle" label="Umlagern" color="blue" />
+            <NavBtn active={activeTab === "outbound"} onClick={() => setActiveTab("outbound")} icon="arrow-up-right-from-circle" label="Ausgang" color="rose" />
           </nav>
         </div>
       );
     }
 
     const NavBtn = ({ active, onClick, icon, label, color = "yellow" }) => {
-      const activeColors = { yellow: "bg-yellow-500 text-slate-900", emerald: "bg-emerald-500 text-white" };
+      const activeColors = {
+        yellow: "bg-yellow-500 text-slate-900",
+        emerald: "bg-emerald-500 text-white",
+        rose: "bg-rose-500 text-white",
+        blue: "bg-blue-500 text-white"
+      };
+
       return (
         <button
           onClick={onClick}
@@ -505,18 +938,13 @@
             active ? activeColors[color] + " scale-105 shadow-xl" : "text-slate-500 hover:text-slate-300"
           }`}
         >
-          <i data-lucide={icon} style={{ width: 18, height: 18 }}></i>
+          <Icon name={icon} size={18} />
           <span className="text-[7px] font-black uppercase tracking-tighter">{label}</span>
         </button>
       );
     };
 
     const root = ReactDOM.createRoot(document.getElementById("root"));
-
-    window.__APP_STARTED__ = true;
-    const boot = document.getElementById("boot");
-    if (boot) boot.style.display = "none";
-
     root.render(<App />);
   </script>
 </body>
